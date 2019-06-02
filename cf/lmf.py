@@ -67,7 +67,7 @@ class SVD:
         for i in range(self.epoch):
             # 计算delta
             self.eta *= self.decay
-            M_ = self.predict()
+            M_ = self.transform()
             delta = M - M_
             delta_U = np.dot(delta, self.V) - self.lu * self.U
             delta_V = np.dot(delta.T, self.U) - self.lv * self.V
@@ -79,7 +79,7 @@ class SVD:
             self.bu += self.eta * delta_bu
             self.bi += self.eta * delta_bi
             if i % 100 == 0:
-                print("{} Epoch {} train rmse: {}".format(datetime.now(), i, self.rmse(M, self.predict())))
+                print("{} Epoch {} train rmse: {}".format(datetime.now(), i, self.rmse(M, self.transform())))
 
     def _fit_increment(self, M):
         """
@@ -109,7 +109,7 @@ class SVD:
                 uid = sample[0]
                 iid = sample[1]
                 vui = sample[2]
-                pui = self.predict(uid, iid)
+                pui = self.transform(uid, iid)
                 delta = vui - pui
                 rmse += delta * delta
                 delta_u = delta * self.V[iid] - self.lu * self.U[uid]
@@ -124,7 +124,7 @@ class SVD:
                 self.bi[iid] += self.eta * delta_bi
             print("{} Epoch {} train rmse: {}".format(datetime.now(), i, np.sqrt(rmse/l)))
 
-    def predict(self, u=None, i=None):
+    def transform(self, u=None, i=None):
         """
         返回用户u对物品i的预测评分值，如果u为None，返回所有用户的预测评分值，如果u不为None，i为None，返回用户u所有物品的预测评分值
         :param u: 用户
@@ -232,7 +232,7 @@ class SVDPP:
         sum_items = np.sum(self.X[item_list], axis=0) / N
         return sum_items, N
 
-    def predict(self, u=None, i=None):
+    def transform(self, u=None, i=None):
         """
         返回用户u对物品i的预测评分值，如果u为None，返回所有用户的预测评分值，如果u不为None，i为None，返回用户u所有物品的预测评分值
         :param u: 用户
@@ -262,7 +262,7 @@ if __name__ == '__main__':
     # M1 = np.concatenate(M1, axis=0)
     # svd = SVD(5000, 0.001, decay=1.0, k=5, method="all")
     # svd.fit(M)
-    # M_ = svd.predict()
+    # M_ = svd.transform()
     # print(svd.rmse(M, M_))
 
     rnames = ['user_id', 'movie_id', 'rating', 'timestamp']

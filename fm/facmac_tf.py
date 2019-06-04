@@ -27,7 +27,7 @@ class FM:
     :param alpha: coefficient of L2 regularization, default 30
     :param optimizer: optimizer, dufault "SGD"
     """
-    def __init__(self, max_iter=100, eta=0.0001, batch=10000, decay=0.99, k=30, alpha=0.01, optimizer="SGD"):
+    def __init__(self, max_iter=100, eta=0.0001, batch=10000, decay=0.99, k=30, alpha=0.001, optimizer="SGD"):
         self.max_iter = max_iter
         self.eta = eta
         self.batch = batch
@@ -43,7 +43,9 @@ class FM:
         os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
         os.environ['CUDA_VISIBLE_DEVICES'] = '0，1'
         self.sess = tf.Session(graph=self.g, config=tf.ConfigProto(log_device_placement=True))
-        self.logger = set_logger()
+        self.logger = set_logger(name="fm_tf")
+        self.logger.info("arguments: {}".format({"max_iter": max_iter, "eta": eta, "batch": batch,
+                                                 "decay": decay, "k": k, "alpha": alpha, "optimizer": optimizer}))
 
     def reference(self, X, reuse=False):
         """ Feedforward process """
@@ -167,14 +169,6 @@ if __name__ == '__main__':
     fm_model = FM(max_iter=100, optimizer="Adam")
     fm_model.fit(data[train_idx], y[train_idx], (data[test_idx], y[test_idx]))
 
-    def func(x):
-        if x <= 1:
-            return 1
-        elif x >= 5:
-            return 5
-        return (x * 2 + 1) // 2
-
     pre = fm_model.transform(data[test_idx])
-    pre = list(map(func, pre))
-    rmse = np.mean((pre - y[test_idx])**2)
-    print(rmse)
+    rmse = np.mean((np.array(pre) - y[test_idx])**2)
+    fm_model.logger.info("after {} epochs, final rmse: {}".format(fm_model.max_iter, rmse))

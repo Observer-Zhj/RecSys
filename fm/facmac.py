@@ -10,6 +10,7 @@ import random
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import MultiLabelBinarizer
+from fm.log import set_logger
 
 
 class FM:
@@ -31,6 +32,9 @@ class FM:
         self.w0 = None
         self.w = None
         self.V = None
+        self.logger = set_logger()
+        self.logger.info("arguments: {}".format({"max_iter": max_iter, "eta": eta, "decay": decay,
+                                                 "k": k, "alpha": alpha}))
 
     def fit(self, X, y, vali=None):
         """
@@ -70,9 +74,9 @@ class FM:
                 vali_loss = vali[1] - self.transform(vali[0])
                 vali_loss = np.multiply(vali_loss, vali_loss)
                 vali_rmse = np.sqrt(np.mean(vali_loss))
-                print("epoch {} train rmse: {} test rmse: {}".format(it, rmse, vali_rmse))
+                self.logger.info("epoch {} train rmse: {} test rmse: {}".format(it, rmse, vali_rmse))
             else:
-                print("epoch {} rmse: {}".format(it, rmse))
+                self.logger.info("epoch {} train: {}".format(it, rmse))
 
     def transform(self, X):
         XV = X * self.V
@@ -141,3 +145,7 @@ if __name__ == '__main__':
 
     fm_model = FM()
     fm_model.fit(data[train_idx], y[train_idx], (data[test_idx], y[test_idx]))
+
+    pre = fm_model.transform(data[test_idx])
+    rmse = np.mean((np.array(pre) - y[test_idx])**2)
+    fm_model.logger.info("after {} epochs, final rmse: {}".format(fm_model.max_iter, rmse))

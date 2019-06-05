@@ -27,7 +27,7 @@ class FM:
     :param alpha: coefficient of L2 regularization, default 30
     :param optimizer: optimizer, dufault "SGD"
     """
-    def __init__(self, max_iter=100, eta=0.0001, batch=10000, decay=0.99, k=30, alpha=0.001, optimizer="SGD"):
+    def __init__(self, max_iter=100, eta=0.0001, batch=10000, decay=0.99, k=30, alpha=0.01, optimizer="SGD"):
         self.max_iter = max_iter
         self.eta = eta
         self.batch = batch
@@ -90,12 +90,15 @@ class FM:
                 for _ in range(X.shape[0] // self.batch):
                     batch_X, batch_y = ds.next_batch(self.batch)
                     _, train_loss = self.sess.run([train_op, loss], feed_dict={self.X: batch_X, self.y: batch_y})
-                train_losses = self.sess.run(loss, feed_dict={self.X: X, self.y: y})
+                train_pre, train_losses = self.sess.run([y_, loss], feed_dict={self.X: X, self.y: y})
+                train_rmse = np.mean((np.array(train_pre) - y) ** 2)
                 if vali:
-                    test_losses = self.sess.run(loss, feed_dict={self.X: vali[0], self.y: vali[1]})
-                    self.logger.info("epoch {} train rmse: {} test rmse: {}".format(it, train_losses, test_losses))
+                    test_pre, test_losses = self.sess.run([y_, loss], feed_dict={self.X: vali[0], self.y: vali[1]})
+                    test_rmse = np.mean((np.array(test_pre) - vali[1]) ** 2)
+                    self.logger.info("epoch {} train loss: {} train rmse: {} vail loss: {} vail rmse: {}".
+                                     format(it, train_losses, train_rmse, test_losses, test_rmse))
                 else:
-                    self.logger.info("epoch {} train: {}".format(it, train_losses))
+                    self.logger.info("epoch {} vail loss: {} train rmse: {}".format(it, train_losses, train_rmse))
 
     def transform(self, X):
         return self._transform(X)
@@ -166,7 +169,7 @@ if __name__ == '__main__':
 
     y = np.array(ratings.rating)
 
-    fm_model = FM(max_iter=100, optimizer="Adam")
+    fm_model = FM(max_iter=100, batch=10000, optimizer="Adam")
     fm_model.fit(data[train_idx], y[train_idx], (data[test_idx], y[test_idx]))
 
     pre = fm_model.transform(data[test_idx])

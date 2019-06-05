@@ -21,14 +21,16 @@ class FM:
     :param decay: learning rate decay rate
     :param k: factor dimension
     :param alpha: coefficient of L2 regularization
+    :param seed: Seed for `RandomState`
     """
-    def __init__(self, max_iter=30, eta=0.0001, decay=0.999, k=30, alpha=0.001):
+    def __init__(self, max_iter=30, eta=0.0001, decay=0.999, k=30, alpha=0.001, seed=None):
 
         self.max_iter = max_iter
         self.eta = eta
         self.decay = decay
         self.k = k
         self.alpha = alpha
+        self.seed = seed
         self.w0 = None
         self.w = None
         self.V = None
@@ -46,6 +48,7 @@ class FM:
         :param y: array-like, shape [n_samples]
         :param vali: tuple, Validation set, [vali_X, vali_y]
         """
+        np.random.seed(self.seed)
         X = np.mat(X)
         y = np.mat(np.reshape(y, (-1, 1)))
         if vali:
@@ -64,8 +67,8 @@ class FM:
                 DV = X[i].T * X[i] * self.V - np.multiply(np.multiply(X[i], X[i]).T, self.V)
                 self.V += eta * (delta * DV - self.alpha * self.V)
                 # for f in range(self.k):
-                #     delta_vf = np.multiply(X[i] * self.V[:, f] , X[i].T) - np.multiply(np.multiply(X[i], X[i]).T, self.V[:, f])
-                #     self.V[:, f] += eta * delta * delta_vf
+                #     delta_vf = np.multiply(X[i] * self.V[:, f], X[i].T) - np.multiply(np.multiply(X[i], X[i]).T, self.V[:, f])
+                #     self.V[:, f] += eta * (delta * delta_vf - self.alpha * self.V[:, f])
             eta = eta * self.decay
             loss = y - self.transform(X)
             loss = np.multiply(loss, loss)
@@ -147,5 +150,5 @@ if __name__ == '__main__':
     fm_model.fit(data[train_idx], y[train_idx], (data[test_idx], y[test_idx]))
 
     pre = fm_model.transform(data[test_idx])
-    rmse = np.mean((np.array(pre) - y[test_idx])**2)
+    rmse = np.mean((np.squeeze(np.array(pre)) - y[test_idx])**2)
     fm_model.logger.info("after {} epochs, final rmse: {}".format(fm_model.max_iter, rmse))

@@ -91,10 +91,10 @@ class FM:
                     batch_X, batch_y = ds.next_batch(self.batch)
                     _, train_loss = self.sess.run([train_op, loss], feed_dict={self.X: batch_X, self.y: batch_y})
                 train_pre, train_losses = self.sess.run([y_, loss], feed_dict={self.X: X, self.y: y})
-                train_rmse = np.mean((np.array(train_pre) - y) ** 2)
+                train_rmse = np.sqrt(np.mean((np.array(train_pre) - y) ** 2))
                 if vali:
                     test_pre, test_losses = self.sess.run([y_, loss], feed_dict={self.X: vali[0], self.y: vali[1]})
-                    test_rmse = np.mean((np.array(test_pre) - vali[1]) ** 2)
+                    test_rmse = np.sqrt(np.mean((np.array(test_pre) - vali[1]) ** 2))
                     self.logger.info("epoch {} train loss: {} train rmse: {} vail loss: {} vail rmse: {}".
                                      format(it, train_losses, train_rmse, test_losses, test_rmse))
                 else:
@@ -173,5 +173,5 @@ if __name__ == '__main__':
     fm_model.fit(data[train_idx], y[train_idx], (data[test_idx], y[test_idx]))
 
     pre = fm_model.transform(data[test_idx])
-    rmse = np.mean((np.array(pre) - y[test_idx])**2)
+    rmse = np.sqrt(np.mean((np.array(pre) - y[test_idx])**2))
     fm_model.logger.info("after {} epochs, final rmse: {}".format(fm_model.max_iter, rmse))

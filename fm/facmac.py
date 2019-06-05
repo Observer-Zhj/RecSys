@@ -23,7 +23,7 @@ class FM:
     :param alpha: coefficient of L2 regularization
     :param seed: Seed for `RandomState`
     """
-    def __init__(self, max_iter=30, eta=0.0001, decay=0.999, k=30, alpha=0.001, seed=None):
+    def __init__(self, max_iter=30, eta=0.0001, decay=0.95, k=30, alpha=0.001, seed=None):
 
         self.max_iter = max_iter
         self.eta = eta
@@ -150,5 +150,5 @@ if __name__ == '__main__':
     fm_model.fit(data[train_idx], y[train_idx], (data[test_idx], y[test_idx]))
 
     pre = fm_model.transform(data[test_idx])
-    rmse = np.mean((np.squeeze(np.array(pre)) - y[test_idx])**2)
+    rmse = np.sqrt(np.mean((np.squeeze(np.array(pre)) - y[test_idx])**2))
     fm_model.logger.info("after {} epochs, final rmse: {}".format(fm_model.max_iter, rmse))

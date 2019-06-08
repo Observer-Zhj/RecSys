@@ -23,7 +23,7 @@ class FM:
     :param alpha: coefficient of L2 regularization
     :param seed: Seed for `RandomState`
     """
-    def __init__(self, max_iter=30, eta=0.0001, decay=0.95, k=30, alpha=0.001, seed=None):
+    def __init__(self, max_iter=30, eta=0.0001, decay=0.95, k=30, alpha=0.01, seed=None):
 
         self.max_iter = max_iter
         self.eta = eta
@@ -99,7 +99,8 @@ def pro_age(x):
     return ages.index(x)
 
 
-def split_data(x, rate=0.2):
+def split_data(x, rate=0.2, seed=None):
+    random.seed(None)
     gb = x.movie_id.groupby(x.user_id)
     train_idx = []
     test_idx = []

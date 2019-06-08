@@ -19,7 +19,7 @@ from fm.datasets import DataSet
 class FM:
     """
     Factorization Machine with tensorflow
-    :param max_iter: maximum iterations, default 3000
+    :param max_iter: maximum iterations, equivalent to the epochs, default 3000
     :param eta: learning rate, default 0.0001
     :param batch: minibatch size, default 10000
     :param decay: learning rate decay rate, default 0.99
@@ -122,7 +122,8 @@ def pro_age(x):
     return ages.index(x)
 
 
-def split_data(x, rate=0.2):
+def split_data(x, rate=0.2, seed=None):
+    random.seed(seed)
     gb = x.movie_id.groupby(x.user_id)
     train_idx = []
     test_idx = []

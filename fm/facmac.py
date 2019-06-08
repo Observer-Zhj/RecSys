@@ -140,7 +140,7 @@ if __name__ == '__main__':
     # feature genres multi labels encoding
     genres = mlb.fit_transform(np.array(genres.values))  # 18
 
-    # concat features
+    # concat features, ignore ID feature
     data = np.concatenate([gender, age, occupation, genres], axis=1)  #48
     # Each user randomly selects 20% of the records as the validation set
     train_idx, test_idx = split_data(mdata, rate=0.2)

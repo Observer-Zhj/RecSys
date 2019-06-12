@@ -23,7 +23,7 @@ class FM:
     :param alpha: coefficient of L2 regularization
     :param seed: Seed for `RandomState`
     """
-    def __init__(self, max_iter=30, eta=0.0001, decay=0.95, k=30, alpha=0.01, seed=None):
+    def __init__(self, max_iter=30, eta=0.0001, decay=0.95, k=30, alpha=0.01, seed=None, log_name="fm_tf"):
 
         self.max_iter = max_iter
         self.eta = eta
@@ -34,7 +34,7 @@ class FM:
         self.w0 = None
         self.w = None
         self.V = None
-        self.logger = set_logger()
+        self.logger = set_logger(name=log_name)
         self.logger.info("arguments: {}".format({"max_iter": max_iter, "eta": eta, "decay": decay,
                                                  "k": k, "alpha": alpha}))
 

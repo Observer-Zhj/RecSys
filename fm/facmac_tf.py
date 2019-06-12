@@ -27,7 +27,7 @@ class FM:
     :param alpha: coefficient of L2 regularization, default 30
     :param optimizer: optimizer, dufault "SGD"
     """
-    def __init__(self, max_iter=100, eta=0.0001, batch=10000, decay=0.99, k=30, alpha=0.01, optimizer="SGD"):
+    def __init__(self, max_iter=100, eta=0.0001, batch=10000, decay=0.99, k=30, alpha=0.01, optimizer="SGD", log_name="fm_tf"):
         self.max_iter = max_iter
         self.eta = eta
         self.batch = batch
@@ -43,7 +43,7 @@ class FM:
         os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
         os.environ['CUDA_VISIBLE_DEVICES'] = '0，1'
         self.sess = tf.Session(graph=self.g, config=tf.ConfigProto(log_device_placement=True))
-        self.logger = set_logger(name="fm_tf")
+        self.logger = set_logger(name=log_name)
         self.logger.info("arguments: {}".format({"max_iter": max_iter, "eta": eta, "batch": batch,
                                                  "decay": decay, "k": k, "alpha": alpha, "optimizer": optimizer}))
 
@@ -149,6 +149,11 @@ if __name__ == '__main__':
 
     mdata = pd.merge(ratings, movies, on="movie_id")
     mdata = pd.merge(mdata, users, on="user_id")
+    mdata["time"] = pd.to_datetime(mdata.timestamp, unit="s")
+    mdata["year"] = mdata.time.dt.year
+    mdata["month"] = mdata.time.dt.month
+    mdata["weekday"] = mdata.time.dt.weekday
+    mdata["hour"] = mdata.time.dt.hour
 
 
     # preprocessing features
@@ -156,21 +161,25 @@ if __name__ == '__main__':
     age = mdata.age.map(pro_age)
     genres = mdata.genres.map(lambda x: x.split("|"))
     # feature one hot encoding
-    gender = ohe.fit_transform(np.array(gender.values).reshape((-1, 1)))  # 2
-    age = ohe.fit_transform(np.array(age.values).reshape((-1, 1)))  # 7
-    occupation = ohe.fit_transform(np.array(mdata.occupation.values).reshape((-1, 1)))  # 21
+    gender = ohe.fit_transform(np.array(gender)[:, np.newaxis])  # 2
+    age = ohe.fit_transform(np.array(age)[:, np.newaxis])  # 7
+    occupation = ohe.fit_transform(np.array(mdata.occupation)[:, np.newaxis])  # 21
+    year = ohe.fit_transform(np.array(mdata.year)[:, np.newaxis])
+    month = ohe.fit_transform(np.array(mdata.month)[:, np.newaxis])
+    weekday = ohe.fit_transform(np.array(mdata.weekday)[:, np.newaxis])
+    hour = ohe.fit_transform(np.array(mdata.hour)[:, np.newaxis])
 
     # feature genres multi labels encoding
     genres = mlb.fit_transform(np.array(genres.values))  # 18
 
     # concat features, ignore ID feature
-    data = np.concatenate([gender, age, occupation, genres], axis=1)  #48
+    data = np.concatenate([gender, age, occupation, genres, year, month, weekday, hour], axis=1)  #48
     # Each user randomly selects 20% of the records as the validation set
     train_idx, test_idx = split_data(mdata, rate=0.2)
 
     y = np.array(ratings.rating)
 
-    fm_model = FM(max_iter=100, batch=10000, optimizer="Adam")
+    fm_model = FM(max_iter=100, batch=10000, optimizer="Adam", log_name="fm_tf_addtime")
     fm_model.fit(data[train_idx], y[train_idx], (data[test_idx], y[test_idx]))
 
     pre = fm_model.transform(data[test_idx])

@@ -6,6 +6,44 @@
 # @Software : PyCharm
 
 import numpy as np
+from itertools import chain
+
+
+class DataParser:
+    def __init__(self, data, multi_labels_cols=None):
+        self.data = data
+        self.feat_dict = {}
+        self.multi_labels_cols = multi_labels_cols
+        self.feat_dim = 0
+
+    def gen_feat_dict(self):
+        tc = 0
+        for col in self.data.columns:
+            if col in self.multi_labels_cols:
+                us = set(chain(*self.data[col]))
+            else:
+                us = self.data[col].unique()
+            self.feat_dict[col] = dict(zip(us, range(tc, len(us) + tc)))
+            tc += len(us)
+        self.feat_dim = tc
+
+    def parse(self):
+        self.gen_feat_dict()
+        dfi = self.data.drop(self.multi_labels_cols, axis=1)
+        # dfi_multi_labels = self.data[self.multi_labels_cols].copy()
+        dfi_multi_labels = []
+        for col in dfi.columns:
+            dfi[col] = dfi[col].map(self.feat_dict[col])
+        for col in self.multi_labels_cols:
+            dfi_multi_labels.append(self.data[col].map(self._multi_labels_map(col)))
+        res = [list(chain(*x)) for x in zip(dfi.values.tolist(), *dfi_multi_labels)]
+        return res
+
+    def _multi_labels_map(self, col):
+        def inner(lst):
+            return [self.feat_dict[col][x] for x in lst]
+        return inner
+
 
 
 class DataSet:
@@ -19,15 +57,12 @@ class DataSet:
     def next_batch(self, batch):
         """
         打乱数据并生成一个迭代器。
-
         数据打乱的规则见初始化函数的参数介绍。
         如果是第一次抽样，则会先打乱数据，然后从中抽取一个`batch`的数据。后面每次调用`next_batch`方法都会在打乱后的数据中
         取出一个`batch`大小的数据。在一轮数据被取完前，取出的数据不会重复。如果取到最后剩余数据小于`batch`，则全部取出，再
         一次抽样的时候所有数据重新打乱。
-
         Args:
             batch：int, 每次抽样取出的数据样本个数。
-
         Returns:
             抽样后的数据。
         """

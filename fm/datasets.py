@@ -19,7 +19,7 @@ class DataParser:
     def gen_feat_dict(self):
         tc = 0
         for col in self.data.columns:
-            if col in self.multi_labels_cols:
+            if self.multi_labels_cols and col in self.multi_labels_cols:
                 us = set(chain(*self.data[col]))
             else:
                 us = self.data[col].unique()
@@ -29,14 +29,20 @@ class DataParser:
 
     def parse(self):
         self.gen_feat_dict()
-        dfi = self.data.drop(self.multi_labels_cols, axis=1)
+        if self.multi_labels_cols:
+            dfi = self.data.drop(self.multi_labels_cols, axis=1)
+        else:
+            dfi = self.data.copy()
         # dfi_multi_labels = self.data[self.multi_labels_cols].copy()
         dfi_multi_labels = []
         for col in dfi.columns:
             dfi[col] = dfi[col].map(self.feat_dict[col])
-        for col in self.multi_labels_cols:
-            dfi_multi_labels.append(self.data[col].map(self._multi_labels_map(col)))
-        res = [list(chain(*x)) for x in zip(dfi.values.tolist(), *dfi_multi_labels)]
+        if self.multi_labels_cols:
+            for col in self.multi_labels_cols:
+                dfi_multi_labels.append(self.data[col].map(self._multi_labels_map(col)))
+            res = [list(chain(*x)) for x in zip(dfi.values.tolist(), *dfi_multi_labels)]
+        else:
+            res = dfi.values.tolist()
         return res
 
     def _multi_labels_map(self, col):

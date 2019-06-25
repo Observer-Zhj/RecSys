@@ -16,14 +16,18 @@ from fm.log import set_logger
 class FM:
     """
     Factorization Machine
-    :param max_iter: maximum iterations, equivalent to the epochs
-    :param eta: learning rate
-    :param decay: learning rate decay rate
-    :param k: factor dimension
-    :param alpha: coefficient of L2 regularization
+    :param max_iter: int, maximum iterations, equivalent to the epochs, default 30
+    :param eta: float, learning rate, default 0.0001
+    :param decay: float, learning rate decay rate, default 0.95
+    :param k: int, factor dimension, default 30
+    :param alpha: float, coefficient of L2 regularization, default 0.01
     :param seed: Seed for `RandomState`
+    :param log_name: str, log name, default "fm"
     """
-    def __init__(self, max_iter=30, eta=0.0001, decay=0.95, k=30, alpha=0.01, seed=None, log_name="fm_tf"):
+    def __init__(self, max_iter=30,
+                 eta=0.0001, decay=0.95,
+                 k=30, alpha=0.01, seed=None,
+                 log_name="fm"):
 
         self.max_iter = max_iter
         self.eta = eta
@@ -59,7 +63,7 @@ class FM:
         eta = self.eta
         for it in range(self.max_iter):
             for i in range(X.shape[0]):
-                delta = y[i] - self.transform(X[i])
+                delta = y[i] - self.predict(X[i])
                 delta = delta[0, 0]
                 self.w0 += eta * delta
                 self.w += eta * (delta * X[i].T - self.alpha * self.w)
@@ -70,18 +74,23 @@ class FM:
                 #     delta_vf = np.multiply(X[i] * self.V[:, f], X[i].T) - np.multiply(np.multiply(X[i], X[i]).T, self.V[:, f])
                 #     self.V[:, f] += eta * (delta * delta_vf - self.alpha * self.V[:, f])
             eta = eta * self.decay
-            loss = y - self.transform(X)
+            loss = y - self.predict(X)
             loss = np.multiply(loss, loss)
             rmse = np.sqrt(np.mean(loss))
             if vali:
-                vali_loss = vali[1] - self.transform(vali[0])
+                vali_loss = vali[1] - self.predict(vali[0])
                 vali_loss = np.multiply(vali_loss, vali_loss)
                 vali_rmse = np.sqrt(np.mean(vali_loss))
                 self.logger.info("epoch {} train rmse: {} test rmse: {}".format(it, rmse, vali_rmse))
             else:
-                self.logger.info("epoch {} train: {}".format(it, rmse))
+                self.logger.info("epoch {} train rmse: {}".format(it, rmse))
 
-    def transform(self, X):
+    def predict(self, X):
+        """
+        predict
+        :param X: array-like, shape [n_samples, n_feature]
+        :return: array-like, shape [n_samples]
+        """
         XV = X * self.V
         X2V2 = np.multiply(X, X) * np.multiply(self.V, self.V)
         return X * self.w + 0.5 * np.sum(np.multiply(XV, XV) - X2V2, axis=1)
@@ -150,6 +159,6 @@ if __name__ == '__main__':
     fm_model = FM()
     fm_model.fit(data[train_idx], y[train_idx], (data[test_idx], y[test_idx]))
 
-    pre = fm_model.transform(data[test_idx])
+    pre = fm_model.predict(data[test_idx])
     rmse = np.sqrt(np.mean((np.squeeze(np.array(pre)) - y[test_idx])**2))
     fm_model.logger.info("after {} epochs, final rmse: {}".format(fm_model.max_iter, rmse))

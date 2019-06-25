@@ -20,15 +20,21 @@ from scipy.sparse import hstack
 class FM:
     """
     Factorization Machine with tensorflow
-    :param max_iter: maximum iterations, equivalent to the epochs, default 3000
-    :param eta: learning rate, default 0.0001
-    :param batch: minibatch size, default 10000
-    :param decay: learning rate decay rate, default 0.99
+    :param feature_nums: int, discrete feature size
+    :param max_iter: int, maximum iterations, equivalent to the epochs, default 30
+    :param eta: float, learning rate, default 0.0001
+    :param batch: int, minibatch size, default 256
+    :param decay: float, learning rate decay rate, default 0.99
     :param k: factor dimension, default 30
     :param alpha: coefficient of L2 regularization, default 30
-    :param optimizer: optimizer, dufault "SGD"
+    :param optimizer: optimizer, dufault "Adam"
+    :param log_name: str, log name, default "fm_tf_1"
     """
-    def __init__(self, feature_nums, max_iter=100, eta=0.0001, batch=10000, decay=0.99, k=30, alpha=0.01, optimizer="SGD", log_name="fm_tf"):
+    def __init__(self, feature_nums,
+                 max_iter=30, eta=0.0001,
+                 batch=256, decay=0.99, k=30,
+                 alpha=0.01, optimizer="Adam",
+                 log_name="fm_tf_1"):
         self.feature_nums = feature_nums
         self.max_iter = max_iter
         self.eta = eta
@@ -43,7 +49,7 @@ class FM:
         tf.reset_default_graph()
         self.g = tf.get_default_graph()
         os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-        os.environ['CUDA_VISIBLE_DEVICES'] = '0，1'
+        os.environ['CUDA_VISIBLE_DEVICES'] = '0'
         self.sess = tf.Session(graph=self.g, config=tf.ConfigProto(log_device_placement=True))
         self.logger = set_logger(name=log_name)
         self.logger.info("arguments: {}".format({"max_iter": max_iter, "eta": eta, "batch": batch,
@@ -113,10 +119,16 @@ class FM:
                 else:
                     self.logger.info("epoch {} train loss: {} train rmse: {}".format(it, train_losses, train_rmse))
 
-    def transform(self, X):
-        return self._transform(X)
+    def predict(self, X):
+        """
+        predict
+        :param X: [[ind1_1, ind1_2, ...], [ind2_1, ind2_2, ...], ..., [indi_1, indi_2, ..., indi_j, ...], ...]
+                  indi_j is the feature index of feature field j of sample i in the training set
+        :return array-like, shape [n_samples]
+        """
+        return self._predict(X)
 
-    def _transform(self, X):
+    def _predict(self, X):
         with self.g.as_default():
             output, _ = self.inference(self.X, True)
             y_ = self.sess.run(output, feed_dict={self.X: X})
@@ -184,11 +196,11 @@ if __name__ == '__main__':
 
     y = np.array(ratings.rating)
 
-    fm_model = FM(feature_nums=dp.feat_dim, max_iter=100, batch=10000, optimizer="Adam", log_name="fm_tf_1")
+    fm_model = FM(feature_nums=dp.feat_dim, max_iter=30, batch=512, optimizer="Adam", log_name="fm_tf_1")
     # trainX = data[train_idx].tolist()
     # testX = data[test_idx].tolist()
     fm_model.fit(data[train_idx], y[train_idx], (data[test_idx], y[test_idx]))
 
-    pre = fm_model.transform(data[test_idx])
+    pre = fm_model.predict(data[test_idx])
     rmse = np.sqrt(np.mean((np.array(pre) - y[test_idx])**2))
     fm_model.logger.info("after {} epochs, final rmse: {}".format(fm_model.max_iter, rmse))

@@ -18,6 +18,12 @@ import random
 import pickle
 import gc
 
+"""
+deepfm简单实现，
+只处理了离散单值特征，连续特征额外添加一个权重矩阵即可，多值特征因为每一行长度不同，需要补0至长度一致。
+avazu数据集未做特征工程，仅做程序测试。
+"""
+
 
 class MyDeepFM:
     """

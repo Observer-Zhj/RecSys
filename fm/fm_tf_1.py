@@ -111,7 +111,7 @@ class FM:
                     self.logger.info("epoch {} train loss: {} train rmse: {} vail loss: {} vail rmse: {}".
                                      format(it, train_losses, train_rmse, test_losses, test_rmse))
                 else:
-                    self.logger.info("epoch {} vail loss: {} train rmse: {}".format(it, train_losses, train_rmse))
+                    self.logger.info("epoch {} train loss: {} train rmse: {}".format(it, train_losses, train_rmse))
 
     def transform(self, X):
         return self._transform(X)

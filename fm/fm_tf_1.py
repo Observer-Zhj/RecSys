@@ -49,7 +49,7 @@ class FM:
         self.logger.info("arguments: {}".format({"max_iter": max_iter, "eta": eta, "batch": batch,
                                                  "decay": decay, "k": k, "alpha": alpha, "optimizer": optimizer}))
 
-    def reference(self, X, reuse=False):
+    def inference(self, X, reuse=False):
         """ Feedforward process """
         with self.g.as_default():
             with tf.variable_scope("fm", reuse=reuse):
@@ -75,7 +75,7 @@ class FM:
     def build(self, X, y, reuse=False):
         """ Calculate the loss, generate the optimizer """
         with self.g.as_default():
-            y_, rl = self.reference(X, reuse)
+            y_, rl = self.inference(X, reuse)
             loss = tf.losses.mean_squared_error(y, y_)
             loss += rl
             global_step = tf.Variable(0, trainable=False)
@@ -118,7 +118,7 @@ class FM:
 
     def _transform(self, X):
         with self.g.as_default():
-            output, _ = self.reference(self.X, True)
+            output, _ = self.inference(self.X, True)
             y_ = self.sess.run(output, feed_dict={self.X: X})
             return y_
 

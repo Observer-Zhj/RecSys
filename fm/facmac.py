@@ -81,7 +81,7 @@ class FM:
                 vali_loss = vali[1] - self.predict(vali[0])
                 vali_loss = np.multiply(vali_loss, vali_loss)
                 vali_rmse = np.sqrt(np.mean(vali_loss))
-                self.logger.info("epoch {} train rmse: {} test rmse: {}".format(it, rmse, vali_rmse))
+                self.logger.info("epoch {} train rmse: {} vali rmse: {}".format(it, rmse, vali_rmse))
             else:
                 self.logger.info("epoch {} train rmse: {}".format(it, rmse))
 

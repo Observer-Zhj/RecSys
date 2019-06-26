@@ -24,7 +24,7 @@ class FM:
     :param batch: int, minibatch size, default 256
     :param decay: float, learning rate decay rate, default 0.99
     :param k: factor dimension, default 30
-    :param alpha: coefficient of L2 regularization, default 30
+    :param alpha: coefficient of L2 regularization, default 0.01
     :param optimizer: optimizer, dufault "Adam"
     :param log_name: str, log name, default "fm_tf"
     """
@@ -98,10 +98,10 @@ class FM:
                 train_pre, train_losses = self.sess.run([y_, loss], feed_dict={self.X: X, self.y: y})
                 train_rmse = np.sqrt(np.mean((np.array(train_pre) - y) ** 2))
                 if vali:
-                    test_pre, test_losses = self.sess.run([y_, loss], feed_dict={self.X: vali[0], self.y: vali[1]})
-                    test_rmse = np.sqrt(np.mean((np.array(test_pre) - vali[1]) ** 2))
+                    vali_pre, vali_losses = self.sess.run([y_, loss], feed_dict={self.X: vali[0], self.y: vali[1]})
+                    vali_rmse = np.sqrt(np.mean((np.array(vali_pre) - vali[1]) ** 2))
                     self.logger.info("epoch {} train loss: {} train rmse: {} vail loss: {} vail rmse: {}".
-                                     format(it, train_losses, train_rmse, test_losses, test_rmse))
+                                     format(it, train_losses, train_rmse, vali_losses, vali_rmse))
                 else:
                     self.logger.info("epoch {} train loss: {} train rmse: {}".format(it, train_losses, train_rmse))
 

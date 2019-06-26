@@ -14,14 +14,13 @@ from sklearn.preprocessing import OneHotEncoder
 from fm.datasets import DataSet, DataParser
 from fm.log import set_logger
 from sklearn.model_selection import train_test_split
+import joblib
 import random
 import pickle
 import gc
 
 """
-deepfm简单实现，
 只处理了离散单值特征，连续特征额外添加一个权重矩阵即可，多值特征因为每一行长度不同，需要补0至长度一致。
-avazu数据集未做特征工程，仅做程序测试。
 """
 
 
@@ -35,11 +34,12 @@ class MyDeepFM:
         :param eta: float, learning rate, default 0.0001
         :param batch: int, minibatch size, default 256
         :param decay: float, learning rate decay rate, default 0.99
+        :param alpha: float, coefficient of L2 regularization, default 0.01
         :param optimizer: str, optimizer, dufault "Adam"
         :param log_name: str, log name, default "deepfm"
         """
     def __init__(self, feature_nums, K=8, deep_units=(32, 32), max_iter=30,
-                 eta=0.0001, batch=256, decay=0.99, optimizer="Adam", log_name="deepfm"):
+                 eta=0.001, batch=256, decay=0.99, alpha=0.01, optimizer="Adam", log_name="deepfm"):
         self.feature_nums = feature_nums
         self.K = K
         self.deep_units = deep_units
@@ -47,11 +47,12 @@ class MyDeepFM:
         self.eta = eta
         self.batch = batch
         self.decay = decay
+        self.alpha = alpha
         self.optimizer = optimizer
         tf.reset_default_graph()
         self.g = tf.get_default_graph()
         os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-        os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+        os.environ['CUDA_VISIBLE_DEVICES'] = '0, 1'
         self.sess = tf.Session(graph=self.g, config=tf.ConfigProto(log_device_placement=True))
         self.logger = set_logger(name=log_name)
         self.logger.info("arguments: {}".format({"feature_nums": feature_nums, "max_iter": max_iter, "eta": eta,
@@ -92,16 +93,19 @@ class MyDeepFM:
                 y_ = tf.concat([fm_first_order, fm_second_order, deep], axis=1)
                 y_ = tf.matmul(y_, weights_output) + bias
                 y_logit = tf.sigmoid(y_)
-                return tf.squeeze(y_), tf.squeeze(y_logit)
+                y_ = tf.squeeze(y_, name="y_")
+                y_logit = tf.squeeze(y_logit, name="y_logit")
+                return y_, y_logit
 
     def build(self, X, y, reuse=False):
         with self.g.as_default():
             y_, y_logit = self.inference(X, reuse)
             loss = tf.losses.sigmoid_cross_entropy(y, y_)
+            loss_add_l2 = loss + tf.contrib.layers.l2_regularizer(self.alpha)(self.weights["weights_output"])
             global_step = tf.Variable(0, trainable=False)
             l_r = tf.train.exponential_decay(self.eta, global_step, 100, self.decay)
-            train_op = tf.contrib.layers.optimize_loss(loss, global_step, l_r, self.optimizer)
-            return y_logit, loss, train_op
+            train_op = tf.contrib.layers.optimize_loss(loss_add_l2, global_step, l_r, self.optimizer)
+            return y_logit, loss, loss_add_l2, train_op
 
     def fit(self, X, y, vali=None):
         """
@@ -114,35 +118,37 @@ class MyDeepFM:
         with self.g.as_default():
             self.X = tf.placeholder(tf.int32, [None, X.shape[1]], name="input_X")
             self.y = tf.placeholder(tf.float32, [None], name="output_y")
-            y_logit, loss, train_op = self.build(self.X, self.y)
+            y_logit, loss, loss_add_l2, train_op = self.build(self.X, self.y)
 
             self.sess.run(tf.global_variables_initializer())
             ds = DataSet(X, y)
 
             for it in range(self.max_iter):
                 for _ in range(len(X) // self.batch):
+                    if _ % 1000 == 0:
+                        print(_)
                     batch_X, batch_y = ds.next_batch(self.batch)
-                    _, train_loss = self.sess.run([train_op, loss], feed_dict={self.X: batch_X, self.y: batch_y})
+                    _ = self.sess.run([train_op], feed_dict={self.X: batch_X, self.y: batch_y})
                 train_len = X.shape[0]
                 bl = 10000
                 train_losses = []
                 for tl in range(train_len // bl):
-                    _, train_loss = self.sess.run([y_logit, loss],
-                                                  feed_dict={self.X: X[tl*bl:(tl+1)*bl],
-                                                             self.y: y[tl*bl:(tl+1)*bl]})
+                    train_loss = self.sess.run([loss],
+                                               feed_dict={self.X: X[tl*bl:(tl+1)*bl],
+                                                          self.y: y[tl*bl:(tl+1)*bl]})
                     train_losses.append(train_loss)
                 train_losses = np.mean(train_losses)
                 if vali:
-                    test_len = vali[0].shape[0]
-                    test_losses = []
-                    for tl in range(test_len // bl):
-                        _, test_loss = self.sess.run([y_logit, loss],
-                                                     feed_dict={self.X: vali[0][tl*bl:(tl+1)*bl],
-                                                                self.y: vali[1][tl*bl:(tl+1)*bl]})
-                        test_losses.append(test_loss)
-                    test_losses = np.mean(test_losses)
+                    vali_len = vali[0].shape[0]
+                    vali_losses = []
+                    for tl in range(vali_len // bl):
+                        vali_loss = self.sess.run([loss],
+                                                  feed_dict={self.X: vali[0][tl*bl:(tl+1)*bl],
+                                                             self.y: vali[1][tl*bl:(tl+1)*bl]})
+                        vali_losses.append(vali_loss)
+                    vali_losses = np.mean(vali_losses)
                     self.logger.info("epoch {} train loss: {} vail loss: {}".format(
-                        it, train_losses, test_losses))
+                        it, train_losses, vali_losses))
                 else:
                     self.logger.info("epoch {} train loss: {}".format(it, train_losses))
 
@@ -168,17 +174,18 @@ if __name__ == '__main__':
     # col.remove("click")
     # col.remove("device_id")
     # col.remove("device_ip")
-    # for i in col:
-    #     print("{} unique nums : {}".format(i, len(train[i].unique())))
+    # # for i in col:
+    # #     print("{} unique nums : {}".format(i, len(train[i].unique())))
     # dp = DataParser(train.drop(ignore_features, axis=1))
     # data = np.array(dp.parse())
     # sparse_train_data = (dp.feat_dim, data, label)
     # with open("../data/avazu/sparse_train_data", "wb") as f:
-    #     pickle.dump(sparse_train_data, f)
+    #     joblib.dump(sparse_train_data, f)
+
     with open("../data/avazu/sparse_train_data", "rb") as f:
-        feature_nums, data, label = pickle.load(f)
+        feature_nums, data, label = joblib.load(f)
     X_train, X_test, y_train, y_test = train_test_split(data, label, test_size=0.2, random_state=0)
     del data, label
     gc.collect()
-    df_model = MyDeepFM(feature_nums, K=8)
+    df_model = MyDeepFM(feature_nums, K=8, max_iter=512)
     df_model.fit(X_train, y_train, (X_test, y_test))

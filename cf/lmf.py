@@ -197,6 +197,10 @@ class SVDPP:
         for i in range(l):
             self.dp[M[i, 0]].append(M[i, 1])
 
+        hb = {}
+        for uid in self.dp.keys():
+            hb[uid] = self._cal_x(uid)
+
         for i in range(self.epoch):
             self.eta *= self.decay
             rmse = 0.0
@@ -206,7 +210,7 @@ class SVDPP:
                 iid = sample[1]
                 vui = sample[2]
 
-                xu, N = self._cal_x(uid)
+                xu, N = hb[uid]
                 pui = self.mean_grade + self.bu[uid] + self.bi[iid] + np.dot(self.U[uid]+xu, self.V[iid])
                 delta = vui - pui
                 rmse += delta * delta
@@ -272,8 +276,29 @@ if __name__ == '__main__':
     MM = np.array(ratings.iloc[:, :3])
     # svd1 = SVD(epoch=30, eta=0.0005, method="increment")
     # svd1.fit(MM)
-    # M = pd.pivot_table(ratings, values="rating", index="user_id", columns="movie_id")
-    # M = M.fillna(0)
+    M = pd.pivot_table(ratings, values="rating", index="user_id", columns="movie_id")
+    M = M.fillna(0)
+    M = np.array(M.values)
 
     svdpp = SVDPP(epoch=30, eta=0.005)
     svdpp.fit(MM)
+    # 4168
+
+
+    def func(x):
+        if x <= 1:
+            return 1
+        elif x >= 5:
+            return 5
+        else:
+            return (x * 2 + 1) // 2
+    pre = svdpp.transform(4168)
+    pre = list(map(func, pre))
+    rmse = 0.0
+    count = 0
+    for i in range(M.shape[1]):
+        if M[4168, i] != 0:
+            count += 1
+            rmse += (M[4168, i] - pre[i])**2
+    rmse = np.sqrt(rmse/count)
+    print(rmse)

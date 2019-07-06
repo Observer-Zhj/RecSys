@@ -21,9 +21,6 @@ import gc
 
 """
 只处理了离散单值特征，连续特征额外添加一个权重矩阵即可，多值特征因为每一行长度不同，需要补0至长度一致。
-
-
-PS: pickle对大于4G的数据序列化会出错，太坑了。。。。改用joblib
 """
 
 
@@ -182,6 +179,7 @@ if __name__ == '__main__':
     # with open("../data/avazu/sparse_train_data", "wb") as f:
     #     joblib.dump(sparse_train_data, f)
 
+    # 大于4G的数据用joblib序列化
     with open("../data/avazu/sparse_train_data", "rb") as f:
         feature_nums, data, label = joblib.load(f)
     X_train, X_test, y_train, y_test = train_test_split(data, label, test_size=0.2, random_state=0)

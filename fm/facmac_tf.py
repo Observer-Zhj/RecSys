@@ -22,7 +22,6 @@ class FM:
     :param max_iter: int, maximum iterations, equivalent to the epochs, default 30
     :param eta: float, learning rate, default 0.0001
     :param batch: int, minibatch size, default 256
-    :param decay: float, learning rate decay rate, default 0.99
     :param k: factor dimension, default 30
     :param alpha: coefficient of L2 regularization, default 0.01
     :param optimizer: optimizer, dufault "Adam"
@@ -30,13 +29,12 @@ class FM:
     """
     def __init__(self, max_iter=0,
                  eta=0.0001, batch=256,
-                 decay=0.99, k=30, alpha=0.01,
+                 k=30, alpha=0.01,
                  optimizer="Adam",
                  log_name="fm_tf"):
         self.max_iter = max_iter
         self.eta = eta
         self.batch = batch
-        self.decay = decay
         self.k = k
         self.alpha = alpha
         self.optimizer = optimizer
@@ -50,7 +48,7 @@ class FM:
         self.sess = tf.Session(graph=self.g, config=tf.ConfigProto(log_device_placement=True))
         self.logger = set_logger(name=log_name)
         self.logger.info("arguments: {}".format({"max_iter": max_iter, "eta": eta, "batch": batch,
-                                                 "decay": decay, "k": k, "alpha": alpha, "optimizer": optimizer}))
+                                                 "k": k, "alpha": alpha, "optimizer": optimizer}))
 
     def reference(self, X, reuse=False):
         """ Feedforward process """
@@ -72,8 +70,7 @@ class FM:
             loss += tf.contrib.layers.l2_regularizer(self.alpha)(self.w)
             loss += tf.contrib.layers.l2_regularizer(self.alpha)(self.V)
             global_step = tf.Variable(0, trainable=False)
-            l_r = tf.train.exponential_decay(self.eta, global_step, 100, self.decay)
-            train_op = tf.contrib.layers.optimize_loss(loss, global_step, l_r, self.optimizer)
+            train_op = tf.contrib.layers.optimize_loss(loss, global_step, self.eta, self.optimizer)
             return y_, loss, train_op
 
     def fit(self, X, y, vali=None):

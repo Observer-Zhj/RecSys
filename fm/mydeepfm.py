@@ -20,9 +20,10 @@ import pickle
 import gc
 
 """
-只处理了离散单值特征，
-连续特征额外添加一个权重矩阵即可（一般连续化特征也离散处理比较好，鲁棒性和可解释性好），
-多值特征因为每一行长度不同，需要补0至长度一致。
+只处理了离散单值特征，连续特征额外添加一个权重矩阵即可，多值特征因为每一行长度不同，需要补0至长度一致。
+
+
+PS: pickle对大于4G的数据序列化会出错，太坑了。。。。改用joblib
 """
 
 
@@ -35,20 +36,18 @@ class MyDeepFM:
         :param max_iter: int, maximum iterations, equivalent to the epochs, default 30
         :param eta: float, learning rate, default 0.0001
         :param batch: int, minibatch size, default 256
-        :param decay: float, learning rate decay rate, default 0.99
         :param alpha: float, coefficient of L2 regularization, default 0.01
         :param optimizer: str, optimizer, dufault "Adam"
         :param log_name: str, log name, default "deepfm"
         """
     def __init__(self, feature_nums, K=8, deep_units=(32, 32), max_iter=30,
-                 eta=0.001, batch=256, decay=0.99, alpha=0.01, optimizer="Adam", log_name="deepfm"):
+                 eta=0.001, batch=256, alpha=0.01, optimizer="Adam", log_name="deepfm"):
         self.feature_nums = feature_nums
         self.K = K
         self.deep_units = deep_units
         self.max_iter = max_iter
         self.eta = eta
         self.batch = batch
-        self.decay = decay
         self.alpha = alpha
         self.optimizer = optimizer
         tf.reset_default_graph()
@@ -58,7 +57,7 @@ class MyDeepFM:
         self.sess = tf.Session(graph=self.g, config=tf.ConfigProto(log_device_placement=True))
         self.logger = set_logger(name=log_name)
         self.logger.info("arguments: {}".format({"feature_nums": feature_nums, "max_iter": max_iter, "eta": eta,
-                                                 "batch": batch, "decay": decay, "k": K, "optimizer": optimizer}))
+                                                 "batch": batch, "k": K, "optimizer": optimizer}))
         self.weights = {}
 
     def inference(self, X, reuse=False):
@@ -105,8 +104,7 @@ class MyDeepFM:
             loss = tf.losses.sigmoid_cross_entropy(y, y_)
             loss_add_l2 = loss + tf.contrib.layers.l2_regularizer(self.alpha)(self.weights["weights_output"])
             global_step = tf.Variable(0, trainable=False)
-            l_r = tf.train.exponential_decay(self.eta, global_step, 100, self.decay)
-            train_op = tf.contrib.layers.optimize_loss(loss_add_l2, global_step, l_r, self.optimizer)
+            train_op = tf.contrib.layers.optimize_loss(loss_add_l2, global_step, self.eta, self.optimizer)
             return y_logit, loss, loss_add_l2, train_op
 
     def fit(self, X, y, vali=None):
@@ -183,8 +181,7 @@ if __name__ == '__main__':
     # sparse_train_data = (dp.feat_dim, data, label)
     # with open("../data/avazu/sparse_train_data", "wb") as f:
     #     joblib.dump(sparse_train_data, f)
-	
-	# pickle对大于4G的数据序列化会出错，太坑了。。。。改用joblib
+
     with open("../data/avazu/sparse_train_data", "rb") as f:
         feature_nums, data, label = joblib.load(f)
     X_train, X_test, y_train, y_test = train_test_split(data, label, test_size=0.2, random_state=0)

@@ -88,3 +88,9 @@ class DataSet:
             self.is_shuffling = 0
 
         return batch_trainx, batch_trainy
+
+
+def to_sparse(data):
+    values = list(chain(*data))
+    indices = [[i, j] for i in range(len(data)) for j in range(len(data[i]))]
+    return indices, values

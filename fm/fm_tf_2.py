@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 # @Author  : ZhengHj
-# @Time    : 2019/5/11 9:15
+# @Time    : 2020/5/20 23:15
 # @Project : recsys
 # @File    : facmac_tf.py
 # @IDE     : PyCharm
-# tensorflow-gpu==0.12.0
 
 import numpy as np
 import random
@@ -14,7 +13,7 @@ from sklearn.preprocessing import MultiLabelBinarizer
 import tensorflow as tf
 import os
 from fm.log import set_logger
-from fm.datasets import DataSet, DataParser
+from fm.datasets import DataSet, DataParser, to_sparse
 from scipy.sparse import hstack
 
 
@@ -54,33 +53,28 @@ class FM:
         self.logger.info("arguments: {}".format({"max_iter": max_iter, "eta": eta, "batch": batch,
                                                  "k": k, "alpha": alpha, "optimizer": optimizer}))
 
-    def inference(self, X, reuse=False):
+    def inference(self, indices, values, dense_shape, reuse=False):
         """ Feedforward process """
         with self.g.as_default():
             with tf.variable_scope("fm", reuse=reuse):
+                X = tf.SparseTensor(indices=indices, values=values, dense_shape=dense_shape)
                 self.b0 = tf.get_variable("b", 1, initializer=tf.initializers.zeros())
                 self.w = tf.get_variable("w", [self.feature_nums, 1], initializer=tf.truncated_normal_initializer(stddev=0.1))
                 self.V = tf.get_variable("v", [self.feature_nums, self.k], initializer=tf.truncated_normal_initializer(stddev=0.1))
-                # def inner(elems):
-                #     xw = tf.reduce_sum(tf.nn.embedding_lookup(self.w, elems))
-                #     xv = tf.nn.embedding_lookup(self.V, elems)
-                #     return self.b0 + xw + 0.5 * tf.reduce_sum(
-                #         tf.reduce_sum(xv, axis=0) ** 2 - tf.reduce_sum(xv ** 2, axis=0))
-                # y_ = tf.map_fn(inner, X, dtype=tf.float32)
-                xw = tf.nn.embedding_lookup(self.w, X)
-                xw = tf.reduce_sum(xw, axis=1)
+                xw = tf.nn.embedding_lookup_sparse(self.w, X, sp_weights=None, combiner='sum')
                 xw = tf.reshape(xw, (-1, ))
-                xv = tf.nn.embedding_lookup(self.V, X)
-                y_ = self.b0 + xw + 0.5 * tf.reduce_sum(tf.reduce_sum(xv, axis=1)**2 - tf.reduce_sum(xv**2, axis=1), axis=1)
-                unique_X = tf.unique(tf.reshape(X, (-1, ))).y
-                rl = tf.contrib.layers.l2_regularizer(self.alpha)(tf.nn.embedding_lookup(self.w, unique_X)) + \
-                     tf.contrib.layers.l2_regularizer(self.alpha)(tf.nn.embedding_lookup(self.V, unique_X))
+                xv_1 = tf.nn.embedding_lookup_sparse(self.V, X, sp_weights=None, combiner='sum') ** 2
+                xv_2 = tf.nn.embedding_lookup_sparse(self.V ** 2, X, sp_weights=None, combiner='sum')
+                y_ = self.b0 + xw + 0.5 * tf.reduce_sum(xv_1 - xv_2, axis=1)
+                unique_X = tf.unique(values).y
+                rl = tf.contrib.layers.l2_regularizer(self.alpha)(tf.nn.embedding_lookup(self.w, unique_X)) \
+                     + tf.contrib.layers.l2_regularizer(self.alpha)(tf.nn.embedding_lookup(self.V, unique_X))
                 return y_, rl
 
-    def build(self, X, y, reuse=False):
+    def build(self, indices, values, dense_shape, y, reuse=False):
         """ Calculate the loss, generate the optimizer """
         with self.g.as_default():
-            y_, rl = self.inference(X, reuse)
+            y_, rl = self.inference(indices, values, dense_shape, reuse)
             loss = tf.losses.mean_squared_error(y, y_)
             loss += rl
             global_step = tf.Variable(0, trainable=False)
@@ -97,20 +91,38 @@ class FM:
         """
         with self.g.as_default():
             self.X = tf.placeholder(tf.int32, [None, None], name="input_X")
+            self.indices = tf.placeholder(tf.int64, [None, 2], name="indices")
+            self.values = tf.placeholder(tf.int32, [None], name="value")
+            self.dense_shape = tf.placeholder(tf.int64, [2], name="dense_shape")
             self.y = tf.placeholder(tf.float32, [None], name="output_y")
-            y_, loss, train_op = self.build(self.X, self.y)
+            y_, loss, train_op = self.build(self.indices, self.values, self.dense_shape, self.y)
 
             self.sess.run(tf.global_variables_initializer())
 
             ds = DataSet(X, y)
+            total_indices, total_values = to_sparse(X)
             for it in range(self.max_iter):
                 for _ in range(len(X) // self.batch):
                     batch_X, batch_y = ds.next_batch(self.batch)
-                    _, train_loss = self.sess.run([train_op, loss], feed_dict={self.X: batch_X, self.y: batch_y})
-                train_pre, train_losses = self.sess.run([y_, loss], feed_dict={self.X: X, self.y: y})
+                    indices, values = to_sparse(batch_X)
+                    _, train_loss = self.sess.run([train_op, loss], feed_dict={
+                        self.indices: indices,
+                        self.values: values,
+                        self.dense_shape: [len(batch_X), self.feature_nums],
+                        self.y: batch_y})
+                train_pre, train_losses = self.sess.run([y_, loss], feed_dict={
+                    self.indices: total_indices,
+                    self.values: total_values,
+                    self.dense_shape: [len(X), self.feature_nums],
+                    self.y: y})
                 train_rmse = np.sqrt(np.mean((np.array(train_pre) - y) ** 2))
                 if vali:
-                    vail_pre, test_losses = self.sess.run([y_, loss], feed_dict={self.X: vali[0], self.y: vali[1]})
+                    indices, values = to_sparse(vali[0])
+                    vail_pre, test_losses = self.sess.run([y_, loss], feed_dict={
+                        self.indices: indices,
+                        self.values: values,
+                        self.dense_shape: [len(vali[0]), self.feature_nums],
+                        self.y: vali[1]})
                     vail_rmse = np.sqrt(np.mean((np.array(vail_pre) - vali[1]) ** 2))
                     self.logger.info("epoch {} train loss: {} train rmse: {} vail loss: {} vail rmse: {}".
                                      format(it, train_losses, train_rmse, test_losses, vail_rmse))
@@ -127,9 +139,14 @@ class FM:
         return self._predict(X)
 
     def _predict(self, X):
+        indices, values = to_sparse(X)
         with self.g.as_default():
-            output, _ = self.inference(self.X, True)
-            y_ = self.sess.run(output, feed_dict={self.X: X})
+            output, _ = self.inference(self.indices, self.values, self.dense_shape, True)
+            y_ = self.sess.run(output, feed_dict={
+                self.indices: indices,
+                self.values: values,
+                self.dense_shape: [len(X), self.feature_nums]
+            })
             return y_
 
 
@@ -186,8 +203,6 @@ if __name__ == '__main__':
     ignore_cols = ["user_id", "movie_id", "rating", "timestamp", "title", "zipcode", "time"]
     dp = DataParser(mdata.drop(ignore_cols, axis=1), ["genres"])
     data = dp.parse()
-    maxlen = max(map(len, data))
-    data = [x + [-1]*(maxlen-len(x)) for x in data]
     data = np.array(data)
     # Each user randomly selects 20% of the records as the validation set
     train_idx, test_idx = split_data(mdata, rate=0.2)
@@ -195,8 +210,7 @@ if __name__ == '__main__':
     y = np.array(ratings.rating)
 
     fm_model = FM(feature_nums=dp.feat_dim, max_iter=30, batch=512, optimizer="Adam", log_name="fm_tf_1")
-    # trainX = data[train_idx].tolist()
-    # testX = data[test_idx].tolist()
+
     fm_model.fit(data[train_idx], y[train_idx], (data[test_idx], y[test_idx]))
 
     pre = fm_model.predict(data[test_idx])
